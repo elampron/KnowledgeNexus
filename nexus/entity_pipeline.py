@@ -72,8 +72,7 @@ class EntityPipeline:
             "For each relationship found:\n"
             "1. Use the exact entity names as subject and object\n"
             "2. Choose a clear, specific predicate that best describes the relationship\n"
-            "3. Assign a confidence score (0-1) based on how explicitly the relationship is stated in the text\n"
-            "Return your findings as a JSON object."
+            "3. Assign a confidence score (0-1) based on how explicitly the relationship is stated in the text"
         )
         
         # The user prompt includes the full text context and the list of entities
@@ -85,67 +84,18 @@ class EntityPipeline:
         )
         
         try:
-            completion = client.chat.completions.create(
+            completion = client.beta.chat.completions.parse(
                 model="gpt-4o",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                response_format={
-                    "type": "json_schema",
-                    "json_schema": {
-                        "name": "relationships",
-                        "description": "A list of relationships between entities",
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "relationships": {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "object",
-                                        "properties": {
-                                            "subject": {"type": "string"},
-                                            "predicate": {"type": "string"},
-                                            "object": {"type": "string"},
-                                            "confidence": {"type": "number"}
-                                        },
-                                        "required": ["subject", "predicate", "object", "confidence"],
-                                        "additionalProperties": False
-                                    }
-                                }
-                            },
-                            "required": ["relationships"],
-                            "additionalProperties": False
-                        },
-                        "strict": True
-                    }
-                },
+                response_format=Relationships,
                 temperature=0.0
             )
             
-            # Get the content from the response
-            content = completion.choices[0].message.content
-            
-            # Parse the JSON response
-            parsed_data = json.loads(content)
-            
-            # Convert to RelationshipSchema objects
-            relationships = [
-                RelationshipSchema(
-                    subject=rel["subject"],
-                    predicate=rel["predicate"],
-                    object=rel["object"],
-                    confidence=rel["confidence"]
-                )
-                for rel in parsed_data.get("relationships", [])
-            ]
-            
-            # Log the inferred relationships for debugging
-            for rel in relationships:
-                logger.debug("Inferred relationship: %s -[%s]-> %s (confidence: %.2f)",
-                           rel.subject, rel.predicate, rel.object, rel.confidence)
-            
-            return relationships
+            # The response is already parsed into our Pydantic model
+            return completion.choices[0].message.parsed.relationships
         
         except Exception as e:
             logger.error("Error extracting relationships: %s", str(e))

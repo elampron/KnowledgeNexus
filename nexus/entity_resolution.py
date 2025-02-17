@@ -60,7 +60,7 @@ class EntityResolutionPipeline:
         """
         system_prompt = """
         You are an entity resolution assistant. Determine if two entities refer to the same real-world object.
-        You must return a JSON object with:
+        You must provide:
         - match: "yes" or "no" indicating if they are the same entity
         - confidence: a float between 0 and 1 indicating your confidence
         - reason: a string explaining your decision
@@ -75,59 +75,22 @@ class EntityResolutionPipeline:
         - Name: {entity_b.name}
         - Aliases: {', '.join(entity_b.aliases) if entity_b.aliases else 'None'}
 
-        Are these the same entity? Provide your analysis in JSON format.
+        Are these the same entity?
         """
 
         try:
-            completion = client.chat.completions.create(
+            completion = client.beta.chat.completions.parse(
                 model="gpt-4o",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                response_format={
-                    "type": "json_schema",
-                    "json_schema": {
-                        "name": "entity_resolution",
-                        "description": "Resolution decision for two potentially matching entities",
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "match": {
-                                    "type": "string",
-                                    "enum": ["yes", "no"],
-                                    "description": "Whether the entities match"
-                                },
-                                "confidence": {
-                                    "type": "number",
-                                    "description": "Confidence score between 0 and 1"
-                                },
-                                "reason": {
-                                    "type": "string",
-                                    "description": "Explanation for the decision"
-                                }
-                            },
-                            "required": ["match", "confidence", "reason"],
-                            "additionalProperties": False
-                        },
-                        "strict": True
-                    }
-                },
+                response_format=AIResolutionResult,
                 temperature=0.0
             )
             
-            # Get the content from the response
-            content = completion.choices[0].message.content
-            
-            # Parse the JSON response
-            parsed_data = json.loads(content)
-            
-            # Convert to AIResolutionResult
-            result = AIResolutionResult(
-                match=parsed_data["match"],
-                confidence=parsed_data["confidence"],
-                reason=parsed_data["reason"]
-            )
+            # The response is already parsed into our Pydantic model
+            result = completion.choices[0].message.parsed
             
             logger.info("AI resolution result for '%s' and '%s': %s",
                         entity_a.name, entity_b.name, result.dict())
