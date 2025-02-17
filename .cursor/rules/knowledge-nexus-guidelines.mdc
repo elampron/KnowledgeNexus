@@ -1,0 +1,120 @@
+---
+description: KnowledgeNexus Coding Guidelines  This document outlines the coding rules and best practices for the KnowledgeNexus project. These rules will be enforced using Cursor AI and other automated tools to maintain code consistency, quality, and adherence to the project’s architect
+globs: 
+---
+## KnowledgeNexus Coding Guidelines
+
+This document outlines the coding rules and best practices for the KnowledgeNexus project. These rules will be enforced using Cursor AI and other automated tools to maintain code consistency, quality, and adherence to the project’s architecture.
+
+---
+
+### 1. Strong Modularization
+
+- Code should be broken into **small, focused modules** rather than large monolithic files.
+- Each module should have a **single responsibility** and avoid handling multiple concerns.
+- If a file exceeds **300 lines** or serves **multiple roles**, it should be refactored into smaller modules.
+- Follow **Python’s package and module system**, keeping related functionality grouped logically.
+
+### 2. PEP8 Compliance
+
+- **All code must adhere to PEP8** for style consistency and readability.
+- Use **4-space indentation**, proper spacing, and **maximum line length of 79 characters**.
+- Follow naming conventions:
+  - **snake\_case** for variables and functions.
+  - **CamelCase** for class names.
+  - **ALL\_CAPS** for constants.
+- Maintain import order:
+  1. Standard library imports
+  2. Third-party imports
+  3. Project-specific imports
+- Use `** and **` for code formatting and linting.
+
+### 3. Mandatory Logging in All Modules
+
+- Every Python module must **initialize a logger** at the top:
+  ```python
+  import logging
+  logger = logging.getLogger(__name__)
+  ```
+- Replace **print statements with logging** (`logger.debug/info/warning/error`).
+- Log key events, errors, and debug information to aid debugging and monitoring.
+
+### 4. Use Pydantic for Data Models
+
+- **All data models must be implemented using Pydantic** for validation and type safety.
+- Define models as:
+  ```python
+  from pydantic import BaseModel
+
+  class ExampleModel(BaseModel):
+      field1: str
+      field2: int
+  ```
+- Avoid using raw dictionaries or manually handling type validation.
+
+### 5. Enforce Unit Testing & High Coverage
+
+- **Every core function must have unit tests.**
+- Use **pytest** as the testing framework.
+- Maintain **90%+ test coverage**, failing CI builds if coverage drops.
+- Tests should be stored in the `tests/` directory and named as `test_<module_name>.py`.
+- Each new function must be accompanied by at least one test.
+
+### 6. Adhere to KnowledgeNexus Architecture
+
+- Follow the **predefined architecture** of the project.
+- Key modules include:
+  - `knowledge/` → Handles data ingestion and storage.
+  - `nexus/` → Core logic and processing.
+  - `cognitive/` → AI-powered functions and analysis.
+  - `api/` → Interface layer for external interactions.
+- Do not introduce new structural components without discussion.
+
+### 7. Maintain Clean Imports & Small File Sizes
+
+- Keep imports **organized and minimal** (remove unused imports).
+- If a file is growing too large, **refactor into multiple modules**.
+- Circular imports should be avoided by structuring dependencies carefully.
+
+### 8. Descriptive Naming Conventions
+
+- **Use clear, descriptive names** for all variables, functions, and classes.
+- Avoid abbreviations or single-letter variable names (except for counters like `i, j`).
+- Function names should clearly indicate their purpose:
+  ```python
+  def calculate_similarity(input_data: str) -> float:
+  ```
+  (instead of `def calc(input):`)
+
+### 9. OpenAI Integration Guidelines
+
+- Use **OpenAI’s official Python client** (`openai` library) for all cognitive functions.
+- **GPT-4o** is designated for **analysis and summarization** tasks, while **GPT-o3-mini** is reserved for **deep reasoning and final analysis when extra power is needed**.
+- **GPT-4o-mini** should be used for **lightweight extraction** and parsing tasks.
+- Example of proper usage:
+  ```python
+  import openai
+  response = openai.ChatCompletion.create(
+      model="gpt-4o",
+      messages=[{"role": "user", "content": "Analyze this data..."}]
+  )
+  ```
+- **Do not use agentic frameworks** (e.g., AutoGPT, LangChain agents). All AI calls should be direct API calls and must enforce structured output formatting when using the OpenAI client.
+
+### 10. Docker & Containerization
+
+- All services must be containerized using **Docker**.
+- Use **Docker Compose** to define and manage multi-container applications.
+- Ensure all dependencies and configurations are properly defined in `Dockerfile` and `docker-compose.yml`.
+- Containers should be lightweight and follow best practices for security and performance.
+
+### 11. Automated Enforcement & CI Integration
+
+- Use **Cursor AI rules** to enforce these guidelines.
+- **Pre-commit hooks** should run `black`, `flake8`, and `pytest`.
+- **CI/CD pipeline** should enforce testing and linting before merging.
+
+---
+
+By adhering to these guidelines, we ensure a **modular, maintainable, and high-quality** KnowledgeNexus codebase.
+
