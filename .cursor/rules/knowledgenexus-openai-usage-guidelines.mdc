@@ -1,0 +1,105 @@
+---
+description: KnowledgeNexus – OpenAI Usage Guidelines
+globs: 
+---
+# KnowledgeNexus – OpenAI Usage Guidelines
+
+This `.mdc` file outlines how to properly interact with the `openai` Python client (version **>=1.0.0**) in KnowledgeNexus. These rules ensure consistent, structured usage across all modules.
+
+---
+
+## 1. API Key & Setup
+
+1. **API Key**: The key is read from an environment variable `OPENAI_API_KEY`.
+2. **Initialization**:
+   ```python
+   import openai
+   import os
+
+   openai.api_key = os.getenv("OPENAI_API_KEY", "")
+   ```
+3. **No Hardcoding**: Never hardcode API keys or secrets in code.
+
+---
+
+## 2. ChatCompletion (New API)
+
+With `openai>=1.0.0`, the library **no longer** supports the old `openai.ChatCompletion.*` calls. Instead, use:
+
+```python
+response = openai.ChatCompletion.create(
+    model="gpt-4",  # Or whichever model is configured
+    messages=[
+        {"role": "system", "content": "SYSTEM_PROMPT_HERE"},
+        {"role": "user", "content": "USER_PROMPT_HERE"}
+    ],
+    temperature=0.0
+)
+
+content = response.choices[0].message.content
+```
+
+1. **Model**: Use the appropriate model, e.g. `gpt-4` or `gpt-3.5-turbo`. If we need deep reasoning, we might configure something else, but we no longer rely on the old `"gpt-o3-mini"` or `"gpt-4o"` references.
+2. **Messages**: Provide a list of role-based messages (`system`, `user`, `assistant`).
+3. **Temperature**: Usually `0.0` for deterministic output, can vary.
+4. **Output**: The returned object contains metadata. The main text is in `response.choices[0].message.content`.
+5. **Error Handling**: Surround calls with try/except if needed, to catch request errors.
+
+---
+
+## 3. Structured JSON Output & Pydantic
+
+Since the built-in `response_model` approach is deprecated, we parse JSON manually:
+
+```python
+import json
+from pydantic import ValidationError
+
+try:
+    parsed = json.loads(content)
+    # Then feed parsed to your Pydantic model:
+    # e.g. data = YourSchema(**parsed)
+except json.JSONDecodeError:
+    # Handle invalid JSON
+except ValidationError as e:
+    # Handle schema violation
+```
+
+To improve consistency, instruct the LLM with a **system prompt** specifying the desired JSON schema, keys, and format.
+
+---
+
+## 4. Model Selection
+
+- **gpt-4**: Use for high-quality analysis, summarization, or tasks requiring advanced reasoning.
+- **gpt-3.5-turbo**: Good for basic extraction or faster requests.
+
+*(We no longer rely on `gpt-o3-mini` or `gpt-4o` naming. This updated approach is consistent with the new OpenAI naming scheme.)*
+
+---
+
+## 5. General Recommendations
+
+1. **Prompt Clarity**: Always be explicit in the `system` or `user` prompt about the format (especially if you need JSON). For example:
+   ```python
+   system_prompt = """
+   You are an entity extraction assistant. Return JSON only:
+   {
+     "entities": [
+       {"name": "string", "entity_type": "string"}
+     ],
+     "confidence": "number"
+   }
+   """
+   user_prompt = "John met Mary in Paris."
+   ```
+
+2. **Validate**: Use Pydantic or other validation to catch malformed responses.
+3. **Logging**: Consider logging the prompt & response for auditing (excluding sensitive data).
+4. **Error Handling**: Manage `openai.error.OpenAIError`, network issues, or rate-limits. Possibly retry on certain errors.
+5. **Version Pin**: If you require a specific version, list it in `pyproject.toml` or `requirements.txt` (e.g. `openai>=1.0.0,<2.0.0`).
+
+---
+
+This file ensures the KnowledgeNexus project uses the up-to-date **OpenAI ChatCompletion** interface, structured JSON output, and Pydantic validation for robust AI-driven features.
+

@@ -1,6 +1,4 @@
-"""
-File watcher module for monitoring and processing new knowledge inputs.
-"""
+# knowledge/watcher.py
 import logging
 from pathlib import Path
 from typing import Optional

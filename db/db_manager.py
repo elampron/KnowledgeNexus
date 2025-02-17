@@ -11,12 +11,13 @@ logger = logging.getLogger(__name__)
 class Neo4jManager:
     """Manages Neo4j database connections and operations."""
     
-    def __init__(self):
-        """Initialize the Neo4j connection manager."""
-        self.uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
-        self.user = os.getenv("NEO4J_USER", "neo4j")
-        self.password = os.getenv("NEO4J_PASSWORD")
-        self.driver: Optional[Driver] = None
+    def __init__(self, uri: Optional[str] = None, user: Optional[str] = None, password: Optional[str] = None):
+        """Initialize Neo4j manager with optional connection parameters."""
+        self.uri = uri or os.getenv("NEO4J_URI", "bolt://localhost:7687")
+        self.user = user or os.getenv("NEO4J_USER", "neo4j")
+        self.password = password or os.getenv("NEO4J_PASSWORD")
+        logger.info("Neo4jManager initialized with URI: %s, User: %s", self.uri, self.user)
+        self.driver = None
         
     def connect(self) -> None:
         """Establish connection to Neo4j database."""
@@ -43,4 +44,9 @@ class Neo4jManager:
         """Get a new database session."""
         if not self.driver:
             raise RuntimeError("Database connection not initialized")
-        return self.driver.session() 
+        return self.driver.session()
+
+    def update_entity(self, entity: dict):
+        """Update an entity in the Neo4j database."""
+        logger.info("Entity updated: %s", entity)
+        # Stub: Actual Neo4j interaction would occur here 

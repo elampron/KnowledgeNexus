@@ -99,6 +99,8 @@ This document outlines the coding rules and best practices for the KnowledgeNexu
       messages=[{"role": "user", "content": "Analyze this data..."}]
   )
   ```
+
+  
 - **Do not use agentic frameworks** (e.g., AutoGPT, LangChain agents). All AI calls should be direct API calls and must enforce structured output formatting when using the OpenAI client.
 
 ### 10. Docker & Containerization
