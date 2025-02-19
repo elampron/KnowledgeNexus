@@ -14,6 +14,7 @@ class Document(BaseModel):
     conversion_status: str = Field(..., description="Status of the document conversion process.")
     error_message: Optional[str] = Field(None, description="Error message during processing, if any.")
     entities: List[str] = Field(default_factory=list, description="List of entity names extracted from the document.")
+    topics: List[str] = Field(default_factory=list, description="List of extracted topics from the document.")
     embedding: Optional[List[float]] = Field(None, description="Vector embedding of the document content.")
     description: str = Field("", description="Short description derived from the document content.")
     content_type: str = Field("", description="Content type determined from the document.")

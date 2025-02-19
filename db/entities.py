@@ -86,6 +86,19 @@ def store_relationship(manager: Neo4jManager, relationship: RelationshipSchema) 
         session.close()
 
 def store_relationships(manager: Neo4jManager, relationships: List[RelationshipSchema]) -> None:
+    """Store inferred relationships between entities in the graph database.
+    For each relationship, match the two entities by name and create a relationship edge with the given predicate and confidence.
+    """
+    query = (
+        "UNWIND $relationships AS rel "
+        "MATCH (a:Entity {name: rel.subject}), (b:Entity {name: rel.object}) "
+        "MERGE (a)-[r:RELATIONSHIP {predicate: rel.predicate}]->(b) "
+        "SET r.confidence = rel.confidence"
+    )
+    with manager.get_session() as session:
+        session.run(query, relationships=[rel.dict() for rel in relationships])
+
+def store_relationships(manager: Neo4jManager, relationships: List[RelationshipSchema]) -> None:
     """Stores multiple relationships in the database."""
     for relationship in relationships:
         store_relationship(manager, relationship) 

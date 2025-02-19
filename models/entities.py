@@ -2,6 +2,7 @@
 import logging
 from typing import Optional
 from pydantic import BaseModel, Field
+from models.topic import TopicSchema
 
 logger = logging.getLogger(__name__)
 
@@ -15,4 +16,5 @@ class EntitySchema(BaseModel):
 
 class ExtractedEntities(BaseModel):
     entities: list[EntitySchema] = Field(..., description="List of extracted entity objects.")
+    topics: list[TopicSchema] = Field(default_factory=list, description="List of extracted topics.")
    

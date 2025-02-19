@@ -50,7 +50,7 @@ class EntityPipeline:
         """
         Infer relationships between entities using the full text as context.
         Uses logical reasoning through LLM to identify meaningful relationships between entities,
-        such as family relationships, professional relationships, ownership, etc.
+        such as family relationships (e.g. 'son_of', 'is_father'), professional relationships, etc.
         Returns a list of RelationshipSchema objects.
         """
         # Get entity names and build a comma-separated list
@@ -62,25 +62,18 @@ class EntityPipeline:
             "You are an expert relationship inference system. Your task is to analyze the following text along "
             "with a list of entities extracted from it. Based on logical and contextual clues in the text, "
             "determine if there are significant relationships between these entities.\n\n"
-            "Consider relationships such as:\n"
-            "- Family relationships (parent of, sibling of, spouse of)\n"
-            "- Professional relationships (works with, reports to, manages)\n"
-            "- Personal relationships (friend of, partner of)\n"
-            "- Organizational relationships (member of, owner of, employed by)\n"
-            "- Temporal relationships (preceded by, succeeded by)\n"
-            "- Spatial relationships (located in, part of)\n\n"
-            "For each relationship found:\n"
-            "1. Use the exact entity names as subject and object\n"
-            "2. Choose a clear, specific predicate that best describes the relationship\n"
-            "3. Assign a confidence score (0-1) based on how explicitly the relationship is stated in the text"
+            "Consider relationships such as: family relationships (e.g., 'son_of', 'is_father'), "
+            "professional relationships, personal relationships, and organizational relationships.\n\n"
+            "For each relationship found, use the exact entity names as subject and object, choose a clear predicate, "
+            "and assign a confidence score between 0 and 1. Return the result as JSON with a key 'relationships', which is a list of objects. "
+            "Each object should have 'subject', 'predicate', 'object', and 'confidence'."
         )
         
         # The user prompt includes the full text context and the list of entities
         user_prompt = (
-            f"Text:\n{text}\n\n"
-            f"Available Entities: {entities_str}\n\n"
+            f"Text:\n{text}\n\nAvailable Entities: {entities_str}\n\n"
             "Analyze the text and identify logical relationships between these entities. "
-            "Only include relationships that are supported by the text content."
+            "Only include relationships that are explicitly supported by the text."
         )
         
         try:
@@ -93,10 +86,11 @@ class EntityPipeline:
                 response_format=Relationships,
                 temperature=0.0
             )
+            # Add debug logging for the raw LLM output
+            raw_output = completion.choices[0].message.content
+            logger.debug("LLM relationship inference raw output: %s", raw_output)
             
-            # The response is already parsed into our Pydantic model
             return completion.choices[0].message.parsed.relationships
-        
         except Exception as e:
             logger.error("Error extracting relationships: %s", str(e))
             return [] 

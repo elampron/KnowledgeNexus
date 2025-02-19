@@ -27,6 +27,7 @@ def create_document(db_manager: Neo4jManager, document: Document) -> None:
         "markdownPath: $markdown_path, "
         "conversionStatus: $conversion_status, "
         "errorMessage: $error_message, "
+        "topics: $topics, "
         "entities: $entities, "
         "embedding: $embedding, "
         "description: $description, "
@@ -47,6 +48,7 @@ def create_document(db_manager: Neo4jManager, document: Document) -> None:
         "markdown_path": document.markdown_path,
         "conversion_status": document.conversion_status,
         "error_message": document.error_message,
+        "topics": document.topics,
         "entities": document.entities,
         "embedding": document.embedding,
         "description": document.description,

@@ -152,6 +152,38 @@ class DocumentConverter:
             computed_description = markdown_text.strip()[:150] if markdown_text.strip() else ""
             computed_summary = markdown_text.strip()[:300] if markdown_text.strip() else ""
 
+        # Extract entities from the markdown text
+        try:
+            extracted_entities = extract_entities_from_text(markdown_text)
+        except Exception as e:
+            logger.error("Entity extraction failed: %s", e)
+            raise RuntimeError(f"Entity extraction failed: {str(e)}")
+        
+        # Process extracted entities through the pipeline
+        try:
+            final_entities = self.entity_pipeline.process_extracted_entities(extracted_entities)
+        except Exception as e:
+            logger.error("Entity processing failed: %s", e)
+            raise RuntimeError(f"Entity processing failed: {str(e)}")
+
+        # Process extracted topics similarly to entities
+        try:
+            from db import topics as db_topics
+            final_topics = []
+            for topic in extracted_entities.topics:
+                similar = db_topics.search_similar_topics(self.db_manager, topic.name)
+                if similar:
+                    existing_topic = similar[0]
+                    merged_aliases = list(set((existing_topic.get('aliases') or []) + topic.aliases))
+                    db_topics.update_topic(self.db_manager, existing_topic['name'], merged_aliases, topic.notes or "")
+                    final_topics.append(existing_topic['name'])
+                else:
+                    final_topics.append(topic.name)
+                    db_topics.update_topic(self.db_manager, topic.name, topic.aliases, topic.notes or "")
+        except Exception as e:
+            logger.error("Topic processing failed: %s", e)
+            raise RuntimeError(f"Topic processing failed: {str(e)}")
+
         # Generate embedding for the combined text content including extra fields
         vectorization_input = "\n".join([markdown_text, computed_description, computed_content_type, computed_summary])
         embedding = None
@@ -162,20 +194,6 @@ class DocumentConverter:
             except Exception as e:
                 logger.error("Embedding generation failed: %s", e)
                 # Don't raise here, we can still proceed with document creation
-
-        # Extract entities from the markdown text
-        try:
-            extracted_entities = extract_entities_from_text(markdown_text)
-        except Exception as e:
-            logger.error("Entity extraction failed: %s", e)
-            raise RuntimeError(f"Entity extraction failed: {str(e)}")
-
-        # Process extracted entities through the pipeline
-        try:
-            final_entities = self.entity_pipeline.process_extracted_entities(extracted_entities)
-        except Exception as e:
-            logger.error("Entity processing failed: %s", e)
-            raise RuntimeError(f"Entity processing failed: {str(e)}")
 
         # Create document record
         document = Document(
@@ -189,6 +207,7 @@ class DocumentConverter:
             conversion_status=conversion_status,
             error_message=error_message,
             entities=[entity.name for entity in final_entities],
+            topics=final_topics,
             embedding=embedding,
             description=computed_description,
             content_type=computed_content_type,
@@ -205,6 +224,10 @@ class DocumentConverter:
                 documents.create_document_entity_relationship(
                     self.db_manager, document.id, entity_name
                 )
+            # Create relationships to topics
+            from db import topics as db_topics
+            for topic_name in document.topics:
+                db_topics.create_document_topic_relationship(self.db_manager, document.id, topic_name)
         except Exception as e:
             logger.error("Database operation failed: %s", e)
             documents.update_document_status(
@@ -214,7 +237,10 @@ class DocumentConverter:
             raise RuntimeError(f"Database operation failed: {str(e)}")
 
         # Infer relationships between entities based on document context
-        self.entity_pipeline.infer_and_store_relationships(markdown_text, final_entities)
+        from db import entities as db_entities
+        relationships = self.entity_pipeline.infer_relationships(markdown_text, final_entities)
+        logger.info("Inferred %d relationships.", len(relationships))
+        db_entities.store_relationships(self.db_manager, relationships)
 
         logger.info("Document processed successfully: %s", document.file_name)
         return document

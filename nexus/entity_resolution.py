@@ -32,10 +32,17 @@ class EntityResolutionPipeline:
         Compute overall similarity between two entities based on name and aliases.
         Weighted sum: 70% for name similarity, 30% for alias similarity.
         """
+        name_a = entity_a.name.lower()
+        name_b = entity_b.name.lower()
+        # If one name is a substring of the other, consider them as a perfect match
+        if name_a in name_b or name_b in name_a:
+            logger.debug("One name is a substring of the other: '%s' and '%s'. Returning 1.0.", name_a, name_b)
+            return 1.0
+
         name_similarity = difflib.SequenceMatcher(
             None,
-            entity_a.name.lower(),
-            entity_b.name.lower()
+            name_a,
+            name_b
         ).ratio()
 
         alias_similarity = 0.0
@@ -49,8 +56,7 @@ class EntityResolutionPipeline:
                 alias_similarity = max(alias_similarity, sim)
 
         overall_similarity = 0.7 * name_similarity + 0.3 * alias_similarity
-        logger.debug("Computed similarity between '%s' and '%s': %.2f",
-                     entity_a.name, entity_b.name, overall_similarity)
+        logger.debug("Computed similarity between '%s' and '%s': %.2f", entity_a.name, entity_b.name, overall_similarity)
         return overall_similarity
 
     def ai_assisted_resolution(self, entity_a: Entity, entity_b: Entity) -> AIResolutionResult:
