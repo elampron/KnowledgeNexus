@@ -53,6 +53,20 @@ class DocumentProcessingPipeline:
             markdown_dir=self.markdown_dir
         )
         
+        # Create vector index for document embeddings
+        try:
+            from db.vector_index import create_vector_index
+            create_vector_index(
+                self.db_manager.driver,
+                label="Document",
+                property="embedding",
+                dimensions=3072  # text-embedding-3-large dimensions
+            )
+            logger.info("Vector index created for Document embeddings")
+        except Exception as e:
+            logger.error("Failed to create vector index: %s", str(e))
+            # Don't raise, we can still proceed with document processing
+        
         logger.info("Document processing pipeline initialized")
     
     def process_document(self, file_path: str) -> Document:

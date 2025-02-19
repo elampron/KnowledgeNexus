@@ -1,6 +1,7 @@
 import logging
 import re
 from pathlib import Path
+import os
 
 import click
 import cognitive.entity_extraction as ce
@@ -191,80 +192,80 @@ def get_document_info(document_id: str):
 
 def run_test():
     """Run a test with hardcoded input."""
-    test_text = """Eric Lampron
-
-
-​
-Patrick Guedj;
-​
-Marc Belliveau
-​
-Salut vous deux,
-
- 
-
-je sais que vous vivez un moment chaotique en ce moment et loin de moi le désire d'en ajouter.
-
-Par contre, j'ai la conviction que 2025 sera l'année des Agents AI et j'ai vraiment l'intention de capitaliser ma relativement grande expertise. Je dis relativement car je conviens que ca fais juste 3 ans que je fais de la recherche et joue avec, mais comparativement au marché, je suis expert.
-
-Ma compréhension des processus d'affaire, jumelé à mon expertise technique, font un mélange parfait pour conceptualiser , réaliser et déployer des solutions d'automatisation propulser par le AI. Ma maitrise du AI en ce moment me libère de la dépendance d'équipe de dev, et me permet une énorme créativité.
-
-En 2025, il y aura beaucoup de services vendu qui touche le AI. Et moi je veux une part du gateau. Pas nécessairement pour le potentiel de revenu, mais surtout parce que ca me passionne. 
-
-Par contre, j'ai aussi de grandes obligations financières et a 51 ans, je ne peux plus me permettre de laisse trop d'argent sur la table. Je dois penser a une retraite un jour et je dois me rebâtir.  Je vous considère comme des amis, et même de la famille et je vais toujours favoriser travailler avec vous. Mais ca ne doit plus être au détriment de mon futur. 
-
-C'est pour ca que je vais vous mettre un peu de pression. Je sais que vos objectifs et budget ne sont pas encore bien définis et que ce n'est pas le meilleur timing, mais j'aimerais avoir une réponse à ce qui suit assez rapidement. Je dois savoir si je dois poke le marché. 
-
- 
-
-Voici la vison très personnelle d'Eric Lampron:
-
- 
-
-Agir en tant qu'architecte de solution AI chez Thinkmax (mon désir n'est pas de travailler avec l'équipe de BI et Tec de Talan, mais bien avec vous et vos clients) dont voici les responsabilités principales:
-
-      Aider à définir l'offre de service et la vision
-
-      Participer aux activités de ventes lorsque reliés au AI
-
-      Participer aux réseautage relié au AI
-
-      Définir, designer et implementer des solutions d'automatisation robustes pour vos clients existants, et nouveaux.
-
-      Je peux manager de petites équipes au besoins. Mais ma préférence reste le travail relié au AI et non l'administration ou le leadership. C'est une préférence flexible si ca peut aider la justifications des couts
-
-      Je n'ai pas besoin de vous convaincre que ma présence dans les équipes est la plupart du temps très appréciée, et que je suis un parfait mélange de bibitte technique, leader et communicateur. 
-
- 
-
-En gros, je veux faire bénéficier Thinkmax du meilleur des mes skills, tout en trippant avec vous.
-
-Je vous offre le tout a mon nouveau taux famille de 135$. Je me suis commis a Tarek pour du temps plein afin de stabiliser les TI pour une période de 6 semaines. Je commencerais donc à avoir de la disponibilité à partir de la fin février. 
-
-J'aimerais savoir assez rapidement, votre intérêt afin que j'ai assez de temps pour me trouver autre chose dans le cas ou il y en aurait pas.
-
-Ceci est ce que je suis prêt à offrir a Thinkmax/Talan, en attendant qu'on puisse repartir autre chose ensemble �
-
- 
-
-Lampron
-
- 
-
- 
-
- """
-
-    test_instructions = "Focus on personal and professional relationships, and family connections."
+    # Set up detailed logging
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
     
-    click.echo("Running test with sample biographical text...")
-    process_input.callback(test_text, test_instructions)
+    try:
+        test_text = """# Eric's Life details
 
-    # Test document processing
-    test_file = "C:/Users/lampr/OneDrive/Pictures/67673571642__3A378B89-2C90-4849-9EA2-3734DB41017C.jpg"
-    if Path(test_file).exists():
-        click.echo("\nTesting document processing...")
-        process_document.callback(test_file)
+## Summary
+Name : Eric Lampron
+Date of Birth : December 21, 1973
+Place of Birth : Senneterre, Province of Quebec, Canada
+Gender : Male
+Current Job: CO-Owmner of Me.cie with Marie-Eve Girard, Presently Subcontracting my to time to Thinkmax as their Director of IT.
+Current Relationship Status: In a healthy and loving open relationship with Marie-Eve Girard.
+Current Children: 2 Boys from a previous relationship with Roxanne Chabot, William Lampron (Feb. 19 2001) and Edouard Lampron ( March 28, 2006), and 1 boy with my current relationship, Arthur Lampron ( Dec. 17, 2021)
+Parents: Mother: Danielle Bertrand ( March 18, 1950) and Father: Jacques Lampron ( Dec. 4 1949)
+Siblings: Sister: Claudine Lampron ( Dec. 27, 1976)
+Current Living Situation : Renting an nice Canadian Style house in Beloeil, Qc, Canada
+
+## Personal information
+Cell: 514-501-0124
+Main personal email: elampron@gmail.com
+Thinkmax email: elampron@thinkmax.com
+M.E Cie. email: elampron@mecie.ca
+Fondation Leski email: elampron@fondationleski.com
+
+Marie-eve cell: 514-433-9555
+Marie-eve gmail: girard.marie.ev@gmail.com
+Marie-eve M.E Cie. email: megirard@mecie.ca
+Marie-eve Fondation Leksi: megirard@fondationleski.com
+
+
+## Childhood
+Born on December 21, 1973, in a small canadian village called Senneterre, situated in a region named Abitibi, about 500 km north of Montreal in the Quebec province, Eric Lampron spent a modest but happy childhood. Like many boys at this stage in life, Eric wanted to become an Astronaut, or a Marine Biologist later. He loved reading sci-fi, fleuve noir series. He LOVED star Wars. He was so curious about everything, including science, space, technology, animals. For 10 years, he lived in the rural part of the small village of Senneterre. """
+
+        test_instructions = "Focus on personal and professional relationships, and family connections."
+        
+        click.echo("Running test with sample biographical text...")
+        
+        # Initialize components with explicit error handling
+        try:
+            db_manager = Neo4jManager()
+            db_manager.connect()
+            logger.info("Successfully connected to Neo4j database")
+        except Exception as e:
+            logger.error("Failed to connect to Neo4j: %s", str(e))
+            click.echo("Error: Failed to connect to database", err=True)
+            return
+
+        try:
+            process_input.callback(test_text, test_instructions)
+            logger.info("Successfully processed test input")
+        except Exception as e:
+            logger.error("Error processing test input: %s", str(e))
+            click.echo(f"Error processing test input: {str(e)}", err=True)
+        finally:
+            db_manager.close()
+            logger.info("Closed database connection")
+
+        # Test document processing with explicit error handling
+        # test_file = "C:/Users/lampr/OneDrive/Pictures/67673571642__3A378B89-2C90-4849-9EA2-3734DB41017C.jpg"
+        # if os.path.exists(test_file):
+        #     click.echo("\nTesting document processing...")
+        #     try:
+        #         process_document.callback(test_file)
+        #         logger.info("Successfully processed test document")
+        #     except Exception as e:
+        #         logger.error("Error processing test document: %s", str(e))
+        #         click.echo(f"Error processing test document: {str(e)}", err=True)
+    except Exception as e:
+        logger.error("Test run failed: %s", str(e))
+        click.echo(f"Test run failed: {str(e)}", err=True)
 
 
 if __name__ == '__main__':

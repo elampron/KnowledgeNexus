@@ -17,6 +17,7 @@ from models.document import Document
 from models.entities import ExtractedEntities
 from cognitive.entity_extraction import extract_entities_from_text
 from nexus.entity_processing import EntityProcessingPipeline
+from db.vector_utils import get_embedding
 
 logger = logging.getLogger(__name__)
 
@@ -80,9 +81,18 @@ class DocumentConverter:
         conversion_status = "Success"
         error_message = None
         try:
-            md = MarkItDown()
+            # Initialize OpenAI client for image processing if needed
+            image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'}
+            if file_type in image_extensions:
+                from openai import OpenAI
+                client = OpenAI()
+                md = MarkItDown(llm_client=client, llm_model="gpt-4o")
+            else:
+                md = MarkItDown()
+                
             result = md.convert(dest_original)
             markdown_text = result.text_content
+            logger.info("File converted successfully: %s", base_name)
         except Exception as e:
             conversion_status = "Conversion Failed"
             error_message = str(e)
@@ -100,6 +110,58 @@ class DocumentConverter:
         except Exception as e:
             logger.error("Saving markdown file failed: %s", e)
             raise RuntimeError(f"Failed to save markdown file: {str(e)}")
+
+        # New LLM step to generate document metadata (content type, description, summary) using the extracted markdown text
+        try:
+            from openai import OpenAI
+            # Import the Pydantic model for LLM metadata
+            from models.llm_document_metadata import DocumentLLMMetadata
+            
+            client = OpenAI()
+            
+            # Construct system prompt that includes the schema information
+            system_prompt = """
+            You are an assistant that analyzes document text and generates metadata.
+            Classify the content into one of the following categories: Email, Note, Documentation, Post, Image, or Other.
+            Then, generate a short description (maximum 150 characters) and a brief summary (maximum 300 characters) of the document.
+            """
+            
+            # First 1000 characters of the document as user content
+            user_content = f"Document text: {markdown_text[:1000]}..."
+            
+            completion = client.beta.chat.completions.parse(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content}
+                ],
+                response_format=DocumentLLMMetadata,
+                temperature=0.3
+            )
+            
+            # Get the parsed response directly as our Pydantic model
+            llm_metadata = completion.choices[0].message.parsed
+            computed_content_type = llm_metadata.content_type
+            computed_description = llm_metadata.description
+            computed_summary = llm_metadata.summary
+            logger.info("LLM generated metadata: content_type=%s, description=%s, summary=%s", 
+                       computed_content_type, computed_description, computed_summary)
+        except Exception as e:
+            logger.error("LLM metadata generation failed: %s", e)
+            computed_content_type = file_type
+            computed_description = markdown_text.strip()[:150] if markdown_text.strip() else ""
+            computed_summary = markdown_text.strip()[:300] if markdown_text.strip() else ""
+
+        # Generate embedding for the combined text content including extra fields
+        vectorization_input = "\n".join([markdown_text, computed_description, computed_content_type, computed_summary])
+        embedding = None
+        if markdown_text.strip():
+            try:
+                embedding = get_embedding(vectorization_input)
+                logger.info("Generated embedding for document: %s", base_name)
+            except Exception as e:
+                logger.error("Embedding generation failed: %s", e)
+                # Don't raise here, we can still proceed with document creation
 
         # Extract entities from the markdown text
         try:
@@ -126,7 +188,11 @@ class DocumentConverter:
             markdown_path=dest_markdown,
             conversion_status=conversion_status,
             error_message=error_message,
-            entities=[entity.name for entity in final_entities]
+            entities=[entity.name for entity in final_entities],
+            embedding=embedding,
+            description=computed_description,
+            content_type=computed_content_type,
+            summary=computed_summary
         )
 
         # Store document in database
