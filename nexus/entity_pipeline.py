@@ -44,6 +44,9 @@ class EntityPipeline:
         # Step 4: Store relationships in the database
         db_entities.store_relationships(self.db_manager, relationships)
         
+        # Step 5: Process extracted memories
+        self.process_memories(extracted_entities.memories)
+        
         return final_entities, relationships
 
     def infer_relationships(self, text: str, entities: List[Entity]) -> List[RelationshipSchema]:
@@ -78,7 +81,7 @@ class EntityPipeline:
         
         try:
             completion = client.beta.chat.completions.parse(
-                model="gpt-4o",
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
@@ -94,3 +97,10 @@ class EntityPipeline:
         except Exception as e:
             logger.error("Error extracting relationships: %s", str(e))
             return [] 
+
+    def process_memories(self, memories: list) -> None:
+        """Processes extracted memories by storing them in the database."""
+        from db import memories as db_memories
+        for mem in memories:
+            with self.db_manager.get_session() as session:
+                db_memories.create_memory(session, mem.content, mem.confidence) 

@@ -13,11 +13,11 @@ def search_similar_topics(db_manager: Neo4jManager, topic_name: str) -> List[Dic
         return [dict(record) for record in result]
 
 
-def update_topic(db_manager: Neo4jManager, name: str, aliases: List[str], notes: str) -> None:
+def update_topic(db_manager: Neo4jManager, name: str, aliases: List[str]) -> None:
     """Update or create a Topic node with the provided name, aliases, and notes."""
-    query = "MERGE (t:Topic {name: $name}) SET t.aliases = $aliases, t.notes = $notes"
+    query = "MERGE (t:Topic {name: $name}) SET t.aliases = $aliases"
     with db_manager.get_session() as session:
-        session.run(query, name=name, aliases=aliases, notes=notes)
+        session.run(query, name=name, aliases=aliases)
         logger.info("Updated topic: %s", name)
 
 

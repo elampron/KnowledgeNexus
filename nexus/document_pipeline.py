@@ -35,6 +35,8 @@ class DocumentProcessingPipeline:
         
         # Set up storage directories
         self.file_storage_base = file_storage_base or "knowledge_nexus_files"
+        # Use a single storage directory for all files as per updated design
+        self.storage_dir = self.file_storage_base
         self.original_dir = str(Path(self.file_storage_base) / "originals")
         self.markdown_dir = str(Path(self.file_storage_base) / "markdown")
         
@@ -49,8 +51,7 @@ class DocumentProcessingPipeline:
         self.document_converter = DocumentConverter(
             db_manager=self.db_manager,
             entity_pipeline=self.entity_pipeline,
-            original_dir=self.original_dir,
-            markdown_dir=self.markdown_dir
+            storage_dir=self.storage_dir
         )
         
         # Create vector index for document embeddings

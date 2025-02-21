@@ -25,25 +25,21 @@ class DocumentConverter:
     def __init__(self, 
                  db_manager: Neo4jManager,
                  entity_pipeline: EntityProcessingPipeline,
-                 original_dir: str = 'knowledge_nexus_files/originals',
-                 markdown_dir: str = 'knowledge_nexus_files/markdown'):
+                 storage_dir: str = 'knowledge_nexus_files'):
         """
         Initialize DocumentConverter with Neo4j database manager and entity processing pipeline.
         
         Args:
             db_manager: Neo4j database manager instance
-            entity_pipeline: Entity processing pipeline instance
-            original_dir: Directory to store original files
-            markdown_dir: Directory to store converted markdown files
+            entity_pipeline: EntityProcessingPipeline instance
+            storage_dir: Directory to store both original and converted markdown files.
         """
         self.db_manager = db_manager
         self.entity_pipeline = entity_pipeline
-        self.original_dir = original_dir
-        self.markdown_dir = markdown_dir
+        self.storage_dir = storage_dir
 
-        # Ensure the directories exist
-        os.makedirs(self.original_dir, exist_ok=True)
-        os.makedirs(self.markdown_dir, exist_ok=True)
+        # Ensure the storage directory exists
+        os.makedirs(self.storage_dir, exist_ok=True)
 
     def store_file_and_convert(self, src_file_path: str) -> Document:
         """
@@ -61,8 +57,9 @@ class DocumentConverter:
         # Generate a unique ID and construct a unique file name
         file_id = str(uuid.uuid4())
         base_name = os.path.basename(src_file_path)
-        unique_file_name = f"{file_id}_{base_name}"
-        dest_original = os.path.join(self.original_dir, unique_file_name)
+        file_name, file_ext = os.path.splitext(base_name)
+        unique_file_name = f"{file_name}_{file_id}{file_ext}"
+        dest_original = os.path.join(self.storage_dir, unique_file_name)
 
         # Copy the original file to the storage directory
         try:
@@ -77,31 +74,43 @@ class DocumentConverter:
         upload_date = datetime.datetime.now()
 
         # Convert the file to Markdown using MarkItDown
-        markdown_text = ""
-        conversion_status = "Success"
-        error_message = None
-        try:
-            # Initialize OpenAI client for image processing if needed
-            image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'}
-            if file_type in image_extensions:
-                from openai import OpenAI
-                client = OpenAI()
-                md = MarkItDown(llm_client=client, llm_model="gpt-4o")
-            else:
-                md = MarkItDown()
+        if file_type == ".md":
+            try:
+                with open(dest_original, "r", encoding="utf-8") as f:
+                    markdown_text = f.read()
+                conversion_status = "Conversion Skipped"
+                error_message = None
+                logger.info("File is markdown. Skipping conversion and using original content.")
+            except Exception as e:
+                conversion_status = "Conversion Failed"
+                error_message = str(e)
+                logger.error("Reading markdown file failed: %s", e)
+                raise RuntimeError(f"Failed to read markdown file: {str(e)}")
+        else:
+            try:
+                # Initialize OpenAI client for image processing if needed
+                image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'}
+                if file_type in image_extensions:
+                    from openai import OpenAI
+                    client = OpenAI()
+                    md = MarkItDown(llm_client=client, llm_model="gpt-4o")
+                else:
+                    md = MarkItDown()
                 
-            result = md.convert(dest_original)
-            markdown_text = result.text_content
-            logger.info("File converted successfully: %s", base_name)
-        except Exception as e:
-            conversion_status = "Conversion Failed"
-            error_message = str(e)
-            logger.error("Conversion failed: %s", e)
-            raise RuntimeError(f"Document conversion failed: {str(e)}")
+                result = md.convert(dest_original)
+                markdown_text = result.text_content
+                logger.info("File converted successfully: %s", base_name)
+                conversion_status = "Success"
+                error_message = None
+            except Exception as e:
+                conversion_status = "Conversion Failed"
+                error_message = str(e)
+                logger.error("Conversion failed: %s", e)
+                raise RuntimeError(f"Document conversion failed: {str(e)}")
 
         # Determine the markdown file path (same base name, .md extension)
         markdown_file_name = os.path.splitext(unique_file_name)[0] + ".md"
-        dest_markdown = os.path.join(self.markdown_dir, markdown_file_name)
+        dest_markdown = os.path.join(self.storage_dir, markdown_file_name)
 
         # Write the markdown output
         try:
@@ -111,24 +120,20 @@ class DocumentConverter:
             logger.error("Saving markdown file failed: %s", e)
             raise RuntimeError(f"Failed to save markdown file: {str(e)}")
 
-        # New LLM step to generate document metadata (content type, description, summary) using the extracted markdown text
+        # LLM Metadata Extraction: Generate content_type, description, and summary from the markdown text
         try:
             from openai import OpenAI
-            # Import the Pydantic model for LLM metadata
             from models.llm_document_metadata import DocumentLLMMetadata
-            
             client = OpenAI()
-            
-            # Construct system prompt that includes the schema information
+
             system_prompt = """
             You are an assistant that analyzes document text and generates metadata.
             Classify the content into one of the following categories: Email, Note, Documentation, Post, Image, or Other.
             Then, generate a short description (maximum 150 characters) and a brief summary (maximum 300 characters) of the document.
             """
-            
-            # First 1000 characters of the document as user content
+
             user_content = f"Document text: {markdown_text[:1000]}..."
-            
+
             completion = client.beta.chat.completions.parse(
                 model="gpt-4o",
                 messages=[
@@ -138,51 +143,54 @@ class DocumentConverter:
                 response_format=DocumentLLMMetadata,
                 temperature=0.3
             )
-            
-            # Get the parsed response directly as our Pydantic model
+
             llm_metadata = completion.choices[0].message.parsed
             computed_content_type = llm_metadata.content_type
             computed_description = llm_metadata.description
             computed_summary = llm_metadata.summary
-            logger.info("LLM generated metadata: content_type=%s, description=%s, summary=%s", 
-                       computed_content_type, computed_description, computed_summary)
+            logger.info("LLM generated metadata: content_type=%s, description=%s, summary=%s", computed_content_type, computed_description, computed_summary)
         except Exception as e:
             logger.error("LLM metadata generation failed: %s", e)
             computed_content_type = file_type
             computed_description = markdown_text.strip()[:150] if markdown_text.strip() else ""
             computed_summary = markdown_text.strip()[:300] if markdown_text.strip() else ""
 
-        # Extract entities from the markdown text
+        # Extraction of entities, topics, and memories using extract_entities_from_text
         try:
-            extracted_entities = extract_entities_from_text(markdown_text)
+            from cognitive.entity_extraction import extract_entities_from_text
+            extracted = extract_entities_from_text(markdown_text)
+            # Process extracted entities through the entity pipeline
+            final_entities = self.entity_pipeline.process_extracted_entities(extracted)
+            extracted_entities = final_entities
+            extracted_topics = extracted.topics
+            extracted_memories = extracted.memories
+            logger.info("Entity extraction and processing completed.")
         except Exception as e:
             logger.error("Entity extraction failed: %s", e)
-            raise RuntimeError(f"Entity extraction failed: {str(e)}")
-        
-        # Process extracted entities through the pipeline
-        try:
-            final_entities = self.entity_pipeline.process_extracted_entities(extracted_entities)
-        except Exception as e:
-            logger.error("Entity processing failed: %s", e)
-            raise RuntimeError(f"Entity processing failed: {str(e)}")
+            extracted_entities = []
+            extracted_topics = []
+            extracted_memories = []
 
-        # Process extracted topics similarly to entities
+        # Process extracted topics
         try:
             from db import topics as db_topics
             final_topics = []
-            for topic in extracted_entities.topics:
+            for topic in extracted_topics:
                 similar = db_topics.search_similar_topics(self.db_manager, topic.name)
                 if similar:
                     existing_topic = similar[0]
                     merged_aliases = list(set((existing_topic.get('aliases') or []) + topic.aliases))
-                    db_topics.update_topic(self.db_manager, existing_topic['name'], merged_aliases, topic.notes or "")
+                    db_topics.update_topic(self.db_manager, existing_topic['name'], merged_aliases)
                     final_topics.append(existing_topic['name'])
                 else:
                     final_topics.append(topic.name)
-                    db_topics.update_topic(self.db_manager, topic.name, topic.aliases, topic.notes or "")
+                    db_topics.update_topic(self.db_manager, topic.name, topic.aliases)
         except Exception as e:
             logger.error("Topic processing failed: %s", e)
             raise RuntimeError(f"Topic processing failed: {str(e)}")
+
+        # Process extracted memories (no additional processing assumed)
+        final_memories = extracted_memories
 
         # Generate embedding for the combined text content including extra fields
         vectorization_input = "\n".join([markdown_text, computed_description, computed_content_type, computed_summary])
@@ -206,7 +214,7 @@ class DocumentConverter:
             markdown_path=dest_markdown,
             conversion_status=conversion_status,
             error_message=error_message,
-            entities=[entity.name for entity in final_entities],
+            entities=[entity.name for entity in extracted_entities],
             topics=final_topics,
             embedding=embedding,
             description=computed_description,
@@ -224,10 +232,16 @@ class DocumentConverter:
                 documents.create_document_entity_relationship(
                     self.db_manager, document.id, entity_name
                 )
+            
             # Create relationships to topics
             from db import topics as db_topics
             for topic_name in document.topics:
                 db_topics.create_document_topic_relationship(self.db_manager, document.id, topic_name)
+            
+            # Create relationships to memories
+            from db import memories as db_memories
+            for memory in final_memories:
+                db_memories.create_document_memory_relationship(self.db_manager, document.id, memory)
         except Exception as e:
             logger.error("Database operation failed: %s", e)
             documents.update_document_status(
@@ -238,7 +252,7 @@ class DocumentConverter:
 
         # Infer relationships between entities based on document context
         from db import entities as db_entities
-        relationships = self.entity_pipeline.infer_relationships(markdown_text, final_entities)
+        relationships = self.entity_pipeline.infer_relationships(markdown_text, extracted_entities)
         logger.info("Inferred %d relationships.", len(relationships))
         db_entities.store_relationships(self.db_manager, relationships)
 
