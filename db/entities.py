@@ -26,8 +26,8 @@ RETURN e.name as name, e.aliases as aliases
 """
 
 MERGE_RELATIONSHIP_QUERY = """
-MATCH (s:Entity {name: $subject})
-MATCH (o:Entity {name: $object})
+MATCH (s:Entity) WHERE toLower(s.name) = toLower($subject)
+MATCH (o:Entity) WHERE toLower(o.name) = toLower($object)
 MERGE (s)-[r:RELATED {predicate: $predicate}]->(o)
 ON CREATE SET 
     r.confidence = $confidence,

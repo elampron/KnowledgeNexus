@@ -250,11 +250,50 @@ class DocumentConverter:
             )
             raise RuntimeError(f"Database operation failed: {str(e)}")
 
-        # Infer relationships between entities based on document context
-        from db import entities as db_entities
-        relationships = self.entity_pipeline.infer_relationships(markdown_text, extracted_entities)
-        logger.info("Inferred %d relationships.", len(relationships))
-        db_entities.store_relationships(self.db_manager, relationships)
+        # Infer inter-node relationships between all extracted nodes using a unified LLM call
+        try:
+            from models.relationship import Relationships
+            from openai import OpenAI
+            client = OpenAI()
+            
+            # Consolidate all nodes
+            all_nodes = {
+                "entities": document.entities,
+                "topics": final_topics,
+                "memories": [mem.content for mem in final_memories if hasattr(mem, 'content')]
+            }
+            
+            system_prompt = """
+            You are an assistant that infers inter-node relationships in a knowledge graph.
+            You are provided with a snippet of a document and a JSON object that groups nodes extracted from the document into categories: 'entities', 'topics', and 'memories'.
+            Your task is to analyze the document text and identify explicit relationships between these nodes.
+            For each relationship found, return an object with the following keys:
+              - subject: the name of one node
+              - predicate: a relationship label (e.g., 'son_of', 'father_of', 'related_to')
+              - object: the name of the other node
+              - confidence: a score between 0 and 1 indicating your confidence in this relationship
+            If no explicit relationship is found, return an empty array.
+            Return the output strictly as a JSON object with a key 'relationships' mapping to an array of relationship objects.
+            """
+            
+            user_prompt = f"Document text: {markdown_text[:1000]}...\nNodes: {all_nodes}"
+            
+            completion = client.beta.chat.completions.parse(
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                response_format=Relationships,
+                temperature=0.0
+            )
+            
+            inferred_relationships = completion.choices[0].message.parsed.relationships
+            logger.info("Inferred %d inter-node relationships.", len(inferred_relationships))
+            from db import entities as db_entities
+            db_entities.store_relationships(self.db_manager, inferred_relationships)
+        except Exception as e:
+            logger.error("Failed to infer inter-node relationships: %s", str(e))
 
         logger.info("Document processed successfully: %s", document.file_name)
         return document
