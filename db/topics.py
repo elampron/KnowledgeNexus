@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 def search_similar_topics(db_manager: Neo4jManager, topic_name: str) -> List[Dict]:
     """Search for topics similar to the given topic_name using a simple case-insensitive match."""
-    query = "MATCH (t:Topic) WHERE toLower(t.name) CONTAINS toLower($topic_name) RETURN t.name as name, t.aliases as aliases, t.notes as notes"
+    query = "MATCH (t:Topic) WHERE toLower(t.name) CONTAINS toLower($topic_name) RETURN t.name as name, t.aliases as aliases"
     with db_manager.get_session() as session:
         result = session.run(query, topic_name=topic_name)
         return [dict(record) for record in result]

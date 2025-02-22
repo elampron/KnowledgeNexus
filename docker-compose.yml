@@ -13,20 +13,31 @@ services:
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USER=neo4j
       - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+
+      - NEO$J_p
     depends_on:
       - neo4j
 
   neo4j:
-    image: neo4j:4.4
+    image: neo4j:5.26.2-community-ubi9
     container_name: knowledge-nexus-db
     ports:
       - "7474:7474"  # HTTP
       - "7687:7687"  # Bolt
     environment:
       - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD}
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_ACCEPT_LICENSE_AGREEMENT=yes
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*,algo.*,gds.*
+      - NEO4J_dbms_security_procedures_allowlist=apoc.*,algo.*,gds.*
+      - NEO4J_dbms_databases_default__to__read__only=false
+      - NEO4J_server_memory_heap_initial__size=1G
+      - NEO4J_server_memory_heap_max__size=2G
+      - NEO4J_server_memory_pagecache_size=1G
     volumes:
       - neo4j_data:/data
       - neo4j_logs:/logs
+      - ./plugins:/plugins
 
 volumes:
   neo4j_data:

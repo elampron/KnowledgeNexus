@@ -76,16 +76,17 @@ def create_document(db_manager: Neo4jManager, document: Document) -> None:
 
 def create_document_entity_relationship(db_manager: Neo4jManager, document_id: str, entity_name: str) -> None:
     """
-    Create a relationship between the Document and an Entity node.
+    Create a relationship between the Document and an Entity node using case-insensitive matching on entity name.
     Args:
         db_manager: Neo4jManager instance
         document_id (str): The ID of the Document node
         entity_name (str): The name of the Entity node
     """
-    query = (
-        "MATCH (d:Document {id: $document_id}), (e:Entity {name: $entity_name}) "
-        "MERGE (d)-[:MENTIONS]->(e)"
-    )
+    query = """
+    MATCH (d:Document {id: $document_id})
+    MATCH (e:Entity) WHERE toLower(e.name) = toLower($entity_name)
+    MERGE (d)-[:MENTIONS]->(e)
+    """
     try:
         with db_manager.get_session() as session:
             session.run(query, document_id=document_id, entity_name=entity_name)

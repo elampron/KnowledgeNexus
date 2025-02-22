@@ -2,6 +2,8 @@ import logging
 from db.db_manager import Neo4jManager
 from typing import List, Optional
 from models.relationship import RelationshipSchema
+from db.vector_utils import get_embedding
+from db.memories import cosine_similarity
 
 logger = logging.getLogger(__name__)
 
@@ -36,36 +38,118 @@ ON MATCH SET
 RETURN r
 """
 
-def update_entity(manager: Neo4jManager, name: str, aliases: List[str], entity_type: str):
-    """Creates or updates an entity in the database using a MERGE query."""
-    session = manager.get_session()
+def setup_entity_infrastructure(session):
+    """Creates necessary indexes and verifies APOC installation."""
     try:
-        result = session.run(
-            MERGE_ENTITY_QUERY,
-            name=name,
-            aliases=aliases,
-            entity_type=entity_type
-        )
-        record = result.single()
-        logger.info("Entity updated: %s", record)
-        return record
-    finally:
-        session.close()
+        # Attempt to create vector index for entity embeddings.
+        try:
+            session.run("""
+            CREATE VECTOR INDEX entity_embedding IF NOT EXISTS
+            FOR (e:Entity)
+            ON (e.embedding)
+            OPTIONS {
+                indexConfig: {
+                    `vector.dimensions`: 3072,
+                    `vector.similarity_function`: 'cosine'
+                }
+            }
+            """)
+            logger.info("Entity embedding vector index created or already exists")
+        except Exception as vec_err:
+            logger.warning("Vector index creation not supported: %s", str(vec_err))
+        
+        # Test if APOC is available
+        result = session.run("CALL apoc.help('coll')")
+        if list(result):
+            logger.info("APOC functions are available")
+            return True
+        else:
+            logger.warning("APOC functions are not available")
+            return False
+    except Exception as e:
+        logger.warning("Could not setup entity infrastructure: %s", str(e))
+        return False
 
-def search_similar_entities(manager: Neo4jManager, name: str) -> List[dict]:
-    """Searches for entities with similar names using case-insensitive pattern matching."""
-    session = manager.get_session()
-    try:
-        name_pattern = f"(?i).*{name}.*"  # Case-insensitive partial match
-        result = session.run(SEARCH_SIMILAR_ENTITIES_QUERY, name_pattern=name_pattern)
-        records = [
-            {"name": record["name"], "aliases": record.get("aliases", [])}
-            for record in result
-        ]
-        logger.info("Found %d similar entities for '%s'", len(records), name)
-        return records
-    finally:
-        session.close()
+def update_entity(manager: Neo4jManager, name: str, aliases: List[str], entity_type: str):
+    """
+    Update or create an Entity node in the database.
+    Uses a case-insensitive match on the entity name (stored in lowercase) and sets the embedding
+    based on the normalized (lowercase) name.
+    """
+    normalized_name = name.lower()
+    embedding = get_embedding(normalized_name)
+    
+    # First try to setup infrastructure
+    with manager.get_session() as session:
+        has_apoc = setup_entity_infrastructure(session)
+    
+    # Use appropriate query based on APOC availability
+    if has_apoc:
+        query = """
+        MERGE (e:Entity {name: $normalized_name})
+        ON CREATE SET 
+            e.aliases = $aliases, 
+            e.entity_type = $entity_type, 
+            e.embedding = $embedding,
+            e.created_at = timestamp()
+        ON MATCH SET 
+            e.entity_type = $entity_type, 
+            e.embedding = $embedding,
+            e.last_seen_at = timestamp(),
+            e.aliases = apoc.coll.union(e.aliases, $aliases)
+        RETURN e
+        """
+    else:
+        query = """
+        MERGE (e:Entity {name: $normalized_name})
+        ON CREATE SET 
+            e.aliases = $aliases, 
+            e.entity_type = $entity_type, 
+            e.embedding = $embedding,
+            e.created_at = timestamp()
+        ON MATCH SET 
+            e.entity_type = $entity_type, 
+            e.embedding = $embedding,
+            e.last_seen_at = timestamp(),
+            e.aliases = CASE 
+                WHEN e.aliases IS NULL THEN $aliases 
+                ELSE [x IN e.aliases + $aliases WHERE x IS NOT NULL] 
+            END
+        RETURN e
+        """
+    
+    with manager.get_session() as session:
+        session.run(query, 
+                   normalized_name=normalized_name, 
+                   aliases=aliases, 
+                   entity_type=entity_type, 
+                   embedding=embedding)
+
+def search_similar_entities(manager: Neo4jManager, entity_name: str, threshold: float = 0.95, k: int = 5):
+    """
+    Search for similar entities using embedding similarity based on the entity name.
+    Retrieves all Entity nodes that have an embedding and returns those with cosine similarity
+    above the threshold.
+    """
+    query_embedding = get_embedding(entity_name.lower())
+    query = "MATCH (e:Entity) WHERE e.embedding IS NOT NULL RETURN e"
+    with manager.get_session() as session:
+        result = session.run(query)
+        nodes = [record["e"] for record in result]
+
+    similar_entities = []
+    for node in nodes:
+        # Convert node to dictionary for mutation
+        ent = dict(node)
+        emb = ent.get("embedding")
+        if emb:
+            sim = cosine_similarity(query_embedding, emb)
+            if sim >= threshold:
+                ent["similarity"] = sim
+                similar_entities.append(ent)
+
+    similar_entities.sort(key=lambda x: x["similarity"], reverse=True)
+    return similar_entities[:k]
 
 def store_relationship(manager: Neo4jManager, relationship: RelationshipSchema) -> None:
     """Creates or updates a relationship between two entities in the database."""

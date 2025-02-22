@@ -60,7 +60,7 @@ class EntityProcessingPipeline:
         """
         Infer relationships between entities using the full text as context.
         Uses logical reasoning through LLM to identify meaningful relationships between entities,
-        such as family relationships (e.g. 'son_of', 'is_father'), professional relationships, etc.
+        such as family relationships (e.g., 'son_of', 'is_father'), professional relationships, etc.
         Returns a list of RelationshipSchema objects.
         """
         # Get entity names and build a comma-separated list
@@ -86,6 +86,10 @@ class EntityProcessingPipeline:
             "Only include relationships that are explicitly supported by the text."
         )
         
+        # Debug logging for prompts
+        logger.debug("System prompt: %s", system_prompt)
+        logger.debug("User prompt: %s", user_prompt)
+        
         try:
             completion = client.beta.chat.completions.parse(
                 model="gpt-4o",
@@ -99,8 +103,11 @@ class EntityProcessingPipeline:
             # Add debug logging for the raw LLM output
             raw_output = completion.choices[0].message.content
             logger.debug("LLM relationship inference raw output: %s", raw_output)
-            
-            return completion.choices[0].message.parsed.relationships
+            parsed = completion.choices[0].message.parsed
+            if not hasattr(parsed, 'relationships'):
+                logger.warning("LLM output does not contain 'relationships' field. Received: %s", parsed)
+                return []
+            return parsed.relationships
         except Exception as e:
             logger.error("Error extracting relationships: %s", str(e))
             return []

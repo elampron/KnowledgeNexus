@@ -170,3 +170,8 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Data
+knowledge_nexus_files/
+knowledge_nexus_files/*
+

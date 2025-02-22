@@ -23,41 +23,17 @@ class AIResolutionResult(BaseModel):
 
 
 class EntityResolutionPipeline:
-    def __init__(self, lower_threshold: float = 0.5, upper_threshold: float = 0.9):
-        self.lower_threshold = lower_threshold
-        self.upper_threshold = upper_threshold
+    def __init__(self, threshold: float = 0.95):
+        self.threshold = threshold
 
     def compute_similarity(self, entity_a: Entity, entity_b: Entity) -> float:
-        """
-        Compute overall similarity between two entities based on name and aliases.
-        Weighted sum: 70% for name similarity, 30% for alias similarity.
-        """
-        name_a = entity_a.name.lower()
-        name_b = entity_b.name.lower()
-        # If one name is a substring of the other, consider them as a perfect match
-        if name_a in name_b or name_b in name_a:
-            logger.debug("One name is a substring of the other: '%s' and '%s'. Returning 1.0.", name_a, name_b)
-            return 1.0
-
-        name_similarity = difflib.SequenceMatcher(
-            None,
-            name_a,
-            name_b
-        ).ratio()
-
-        alias_similarity = 0.0
-        for alias_a in entity_a.aliases:
-            for alias_b in entity_b.aliases:
-                sim = difflib.SequenceMatcher(
-                    None,
-                    alias_a.lower(),
-                    alias_b.lower()
-                ).ratio()
-                alias_similarity = max(alias_similarity, sim)
-
-        overall_similarity = 0.7 * name_similarity + 0.3 * alias_similarity
-        logger.debug("Computed similarity between '%s' and '%s': %.2f", entity_a.name, entity_b.name, overall_similarity)
-        return overall_similarity
+        from db.vector_utils import get_embedding
+        from db.memories import cosine_similarity
+        emb_a = get_embedding(entity_a.name)
+        emb_b = get_embedding(entity_b.name)
+        sim = cosine_similarity(emb_a, emb_b)
+        logger.debug("Computed embedding similarity between '%s' and '%s': %.2f", entity_a.name, entity_b.name, sim)
+        return sim
 
     def ai_assisted_resolution(self, entity_a: Entity, entity_b: Entity) -> AIResolutionResult:
         """
@@ -123,47 +99,18 @@ class EntityResolutionPipeline:
         return merged_entity
 
     def resolve_entities(self, new_entity: Entity, existing_entities: List[Entity]) -> Entity:
-        """
-        Compare a new entity with existing entities and resolve duplicates.
-        If a match is found with similarity above thresholds, perform merge.
-        """
-        best_similarity = 0.0
-        best_match = None
-
         for existing in existing_entities:
             sim = self.compute_similarity(new_entity, existing)
-            logger.info("Similarity between '%s' and '%s': %.2f",
-                        new_entity.name, existing.name, sim)
-            if sim > best_similarity:
-                best_similarity = sim
-                best_match = existing
-
-        if best_similarity < self.lower_threshold:
-            logger.info("No sufficient match found for '%s'. Adding as new entity.",
-                        new_entity.name)
-            existing_entities.append(new_entity)
-            return new_entity
-        elif best_similarity >= self.upper_threshold:
-            logger.info("High similarity (%.2f) found. Auto-merging '%s' with '%s'.",
-                        best_similarity, new_entity.name, best_match.name)
-            merged = self.merge_entities(new_entity, best_match)
-            existing_entities.remove(best_match)
-            existing_entities.append(merged)
-            return merged
-        else:
-            logger.info("Ambiguous similarity (%.2f) for '%s'. Invoking AI-assisted resolution.",
-                        best_similarity, new_entity.name)
-            ai_result = self.ai_assisted_resolution(new_entity, best_match)
-            if ai_result.match.lower() == "yes" and ai_result.confidence >= self.upper_threshold:
-                merged = self.merge_entities(new_entity, best_match)
-                existing_entities.remove(best_match)
+            logger.info("Similarity between '%s' and '%s': %.2f", new_entity.name, existing.name, sim)
+            if sim >= self.threshold:
+                logger.info("Similarity (%.2f) above threshold for '%s'. Merging with '%s'.", sim, new_entity.name, existing.name)
+                merged = self.merge_entities(new_entity, existing)
+                existing_entities.remove(existing)
                 existing_entities.append(merged)
                 return merged
-            else:
-                logger.info("AI resolution did not approve merge for '%s'. Adding as separate entity.",
-                            new_entity.name)
-                existing_entities.append(new_entity)
-                return new_entity
+        logger.info("No match found for '%s'. Adding as new entity.", new_entity.name)
+        existing_entities.append(new_entity)
+        return new_entity
 
     def infer_relationships(self, text: str):
         """
