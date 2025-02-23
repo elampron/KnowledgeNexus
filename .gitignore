@@ -175,3 +175,4 @@ cython_debug/
 knowledge_nexus_files/
 knowledge_nexus_files/*
 
+./plugins/

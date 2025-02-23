@@ -14,8 +14,6 @@ except ImportError as e:
 from db.db_manager import Neo4jManager
 from db import documents
 from models.document import Document
-from models.entities import ExtractedEntities
-from cognitive.entity_extraction import extract_entities_from_text
 from nexus.entity_processing import EntityProcessingPipeline
 from db.vector_utils import get_embedding
 
@@ -157,8 +155,8 @@ class DocumentConverter:
 
         # Extraction of entities, topics, and memories using extract_entities_from_text
         try:
-            from cognitive.entity_extraction import extract_entities_from_text
-            extracted = extract_entities_from_text(markdown_text)
+            
+            extracted = self.entity_pipeline.extract_entities_from_text(markdown_text)
             # Process extracted entities through the entity pipeline
             final_entities = self.entity_pipeline.process_extracted_entities(extracted)
             extracted_entities = final_entities
