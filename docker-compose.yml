@@ -14,9 +14,9 @@ services:
       - NEO4J_USER=neo4j
       - NEO4J_PASSWORD=${NEO4J_PASSWORD}
 
-      - NEO$J_p
     depends_on:
       - neo4j
+      - jaeger
 
   neo4j:
     image: neo4j:5.26.2-community-ubi9
@@ -38,6 +38,18 @@ services:
       - neo4j_data:/data
       - neo4j_logs:/logs
       - ./plugins:/plugins
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: knowledge-nexus-jaeger
+    ports:
+      - "5775:5775/udp"
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+      - "5778:5778"
+      - "16686:16686"
+      - "14250:14250"
+      - "14268:14268"
 
 volumes:
   neo4j_data:

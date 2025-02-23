@@ -1,3 +1,4 @@
+import opentelemetry_setup
 import gradio as gr
 import os
 import datetime

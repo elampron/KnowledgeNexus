@@ -3,14 +3,8 @@ import uuid
 import datetime
 import shutil
 import logging
-from typing import Dict, Optional
-
-# Try to import markitdown; if not available, instruct the user to install it
-try:
-    from markitdown import MarkItDown
-except ImportError as e:
-    raise ImportError("markitdown module not found. Please install it via pip install markitdown.")
-
+from typing import Dict
+from markitdown import MarkItDown
 from db.db_manager import Neo4jManager
 from db import documents
 from models.document import Document
