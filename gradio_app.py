@@ -1,4 +1,3 @@
-import opentelemetry_setup
 import gradio as gr
 import os
 import datetime
@@ -8,8 +7,6 @@ import uuid
 
 # Import required components from our codebase
 from db.db_manager import Neo4jManager
-from nexus.entity_resolution import EntityResolutionPipeline
-from nexus.entity_pipeline import EntityPipeline
 from nexus.pipeline import KnowledgeNexusPipeline
 from db.vector_utils import get_embedding  # newly imported for embedding
 from db import knowledge_search
